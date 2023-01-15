@@ -1,0 +1,15 @@
+1) MATCH (x:Product) WHERE (x.discontinued=true and (x.productName STARTS WITH 'C' or x.productName ENDS WITH 't')) RETURN x.productName,x.discontinued
+2) MATCH (cust:Customer)-[:PURCHASED]->(ord:Order)-[o:ORDERS]->(p:Product) WITH p,o,COUNT(ord.orderID) AS c WHERE (toFloat(o.discount)>=0.25 and c>=1) RETURN DISTINCT p.productNameMATCH (cat:Category)<-[:PART_OF]-(x:Product)<-[:SUPPLIES]-(s:Supplier) RETURN s.supplierID,cat.categoryName,COUNT(x) as counter ORDER BY counter DESC
+3) MATCH (s:Supplier)-[:SUPPLIES]->(x1:Product)-[:PART_OF]->(c1:Category) WITH s,COUNT(x1.productID) AS c,c1,collect(x1.productName) AS pr RETURN DISTINCT s.contactName,c,c1.categoryName,pr
+4) MATCH (:Product{productName:'Chai'})<-[:SUPPLIES]-(s:Supplier)-[:SUPPLIES]->(x:Product)-[:PART_OF]->(c:Category) RETURN DISTINCT x.productName,c.categoryName
+5) MATCH (:Supplier{country:'Germany'})-[:SUPPLIES]->(x1:Product)-[:PART_OF]->(c:Category)<-[:PART_OF]-(x2:Product)<-[:SUPPLIES]-(:Supplier{country:'Sweden'}) RETURN DISTINCT c.categoryName,c.description
+6) MATCH (cust:Customer)-[:PURCHASED]->(:Order)-[o:ORDERS]->(p:Product{productName:'Chai'}) WHERE cust.country='USA' or cust.country='UK' AND NOT EXISTS ((cust)-[:PURCHASED]->(:Order)-[:ORDERS]->(:Product{productName:'Pavlova'})) RETURN DISTINCT  cust.contactName
+7) MATCH (cust:Customer)-[:PURCHASED]->(ord:Order)-[:ORDERS]->(p:Product)-[:PART_OF]->(:Category{categoryName:'Seafood'})WITH cust,COUNT(DISTINCT(ord)) as counter,collect(ord.orderID) as id WHERE counter>=10 RETURN DISTINCT  cust.contactName,counter,id ORDER BY counter DESC
+8) MATCH (ord:Order)-[:ORDERS]->(p:Product)-[:PART_OF]->(cat:Category) WITH cat,COUNT(DISTINCT(p)) AS c1,COUNT(DISTINCT(ord)) AS c2 WHERE c1>=10 RETURN DISTINCT cat.categoryName,c1,c2 ORDER BY c1 DESC
+9) MATCH (cust:Customer)-[:PURCHASED]->(ord:Order)-[:ORDERS]->(p:Product) WITH ord,collect(p.productName)AS name,cust RETURN ord.orderDate AS date,cust.contactName,name ORDER BY date ASC LIMIT 1
+10) MATCH (ord:Order)-[:ORDERS]->(p:Product) WITH p,COUNT(DISTINCT(ord)) as c RETURN DISTINCT p.productName,c ORDER BY c DESC LIMIT 5
+11) MATCH (c1:Customer)-[:PURCHASED]->(o1:Order)-[:ORDERS]->(p:Product)<-[:ORDERS]-(o2:Order)<-[:PURCHASED]-(c2:Customer) WITH COUNT(DISTINCT(p)) AS c,o1,o2,c1,c2,collect(p.productName)AS coll RETURN DISTINCT c1.contactName,c2.contactName,c,coll ORDER BY c DESC LIMIT 1
+12) MATCH  (p1:Product)<-[:ORDERS]-(ord:Order)-[:ORDERS]->(p2:Product) WITH p1,p2,COUNT(ord.orderID) as c WHERE c>=3 AND p1<>p2 RETURN DISTINCT p1.productName,p2.productName,c
+13) MATCH p=(s1:Supplier{country:'Sweden'})-[*1..4]-(s2:Supplier{country:'Sweden'})  WHERE s1<>s2 RETURN nodes(p)
+14) MATCH path=shortestPath((x1:Customer)-[*]-(x2:Customer)) WHERE x1<>x2 AND x1.contactName STARTS WITH 'F' AND x2.contactName STARTS WITH 'F' RETURN DISTINCT x1.contactName,x2.contactName,length(path) ORDER BY length(path) DESC
+15) MATCH (p:Product) WHERE NOT EXISTS ((:Order)-[:ORDERS]->(p)) RETURN p
