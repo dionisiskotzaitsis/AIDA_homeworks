@@ -1,0 +1,469 @@
+---
+title: "Homework 4"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r, message=FALSE, warning=FALSE}
+library(funModeling)
+library(dplyr)
+library(Hmisc)
+library(tidyverse)
+library("ggridges")
+library(lattice)
+library(GGally)
+library(viridis)
+library(minerva)
+library(RColorBrewer) 
+library(corrplot) 
+
+
+
+```
+Διάβασμα δεδομένων.
+```{r}
+data<-read.csv("spotify_data_by_year.csv")
+```
+
+# Μια πρώτη ματιά στα δεδομένα μας.Βλέπουμε οτι δεν έχουμε μηδενικά στοιχεία και missing τιμές. Επίσης, μπορούμε να δούμε σημαντικά στατιστικά για κάθε κατηγορία με την χρήση του describe.
+```{r}
+df_status(data)
+```
+```{r}
+str(data)
+```
+```{r}
+describe(data)
+
+```
+
+
+```{r}
+profiling_num(data)
+```
+Επιπλέον, μπορούμε να εκτυπώσουμε τα δεδομένα για την συσχέτιση των δεδομένων μας, δηλαδή τις στήλες. O MIC δείκτης δείχνει την κλασική συσχέτιση δύο μεταβλητών. O MIC2 δείχνει την συσχέτιση, αν υπάρχει μια γραμμική σχέση μεταξύ των μεταβλητών ή όχι. υψηλός R2->non-linear σχέση. Ο δείκτης MAS, χρησιμοποείται για μονοτονία/περιοδικότητα μιας μεταβλητής, κυρίως χρονοσειράς. Υψηλό MAS, δείχνει μή μονοτονία ή περιοδική σχέση [0,1] τιμές. Πιο κάτω, φαίνονται όλες οι συσχετίσεις μεταξύ τους, και σε διαγράμματα.
+```{r}
+res_mine_2=mine(data)
+res_mine_2
+```
+```{r}
+
+
+corrplot(res_mine_2$MIC, 
+         method="circle",
+         col=brewer.pal(n=10, name="PuOr"),
+         # only display upper diagonal
+         type="lower", 
+         #label color, size and rotation
+         tl.col="red",
+         tl.cex = 0.9, 
+         tl.srt=90, 
+         # dont print diagonal (var against itself)
+         diag=FALSE, 
+         # accept a any matrix, mic in this case 
+         #(not a correlation element)
+         is.corr = F 
+        
+)
+```
+```{r}
+corrplot(res_mine_2$MICR2, 
+         method="circle",
+         col=brewer.pal(n=10, name="PuOr"),
+         # only display upper diagonal
+         type="lower", 
+         #label color, size and rotation
+         tl.col="red",
+         tl.cex = 0.9, 
+         tl.srt=90, 
+         # dont print diagonal (var against itself)
+         diag=FALSE, 
+         # accept a any matrix, mic in this case 
+         #(not a correlation element)
+         is.corr = F 
+)
+
+```
+```{r}
+corrplot(res_mine_2$MAS, 
+         method="circle",
+         col=brewer.pal(n=10, name="PuOr"),
+         # only display upper diagonal
+         type="lower", 
+         #label color, size and rotation
+         tl.col="red",
+         tl.cex = 0.9, 
+         tl.srt=90, 
+         # dont print diagonal (var against itself)
+         diag=FALSE, 
+         # accept a any matrix, mic in this case 
+         #(not a correlation element)
+         is.corr = F 
+)
+```
+Απ τα προηγούμενα, βλέπουμε οτι δεν υπάρχουν μηδενικά στοιχεία στο dataset, και μπορούμε να δούμε τι είδους δεδομένα έχουμε, χρησιμοποιώντας το str, και μετά να δούμε σημαντικά στατιστικά για το κάθε χαρακτηριστικό βάζοντας την εντολή describe.
+
+
+Ας ξεκινήσουμε την ανάλυση. Για παράδειγμα, μπορούμε να groupαρουμε τα δεδομένα ανα δεκαετία και να δούμε συγκεκριμένα χαρακτηριστικά. Παρακάτω, βλέπουμε την διαφορά στο density ανα δεκαετία, για το tempo των τραφουδιών. Φαίνεται μια σταδιακή αύξηση του τέμπο απο την δεκαετία του 70 και μετά. Επίσης, έχουμε και το count των αντίστοιχων μετρήσεων ανα δεκαετία
+
+
+
+```{r}
+data_decade<-data %>% mutate(decade = floor(year/10)*10)
+d_g<-data_decade%>%gather(key="key",value="score",-decade,-year,-tempo)
+ggplot(d_g, aes(x =tempo , y = stat(density))) + 
+  # plotting
+  geom_histogram(bins = 20, colour = "#80593D", fill = "#9FC29F", boundary = 0) +
+  geom_density(color = "#3D6480") + 
+  facet_wrap(~decade) 
+
+```
+
+
+```{r}
+
+ggplot(d_g, aes(x =tempo))  + 
+  geom_histogram(colour = "#80593D", fill = "#9FC29F", boundary = 0) +
+  facet_wrap(~decade) 
+```
+  
+Παρακάτω, κάνουμε ένα facet wrap, στο οποίο εμφανίζουμε τα popularity ανα δεκαετία. Σημαντικό στοιχείο είναι οτι επειδή υπαρχεί θέμα με το popularity, να κάνουμε μία κανονικοποίηση στο [-1,1].
+```{r}
+ggplot(data_decade)+
+  geom_boxplot(aes(scale(popularity)))+
+  facet_wrap(~decade)+
+  coord_flip()
+
+```
+Ας δούμε και το αντίστοιχο boxplot για την "ενέργεια" κάθε δεκαετία. Βλέπουμε οτι η ενέργεια των τραγουδιών, ανεβαίνει κάθε δεκαετία και παραπάνω.
+```{r}
+ggplot(data_decade)+
+  geom_boxplot(aes(energy))+
+  facet_wrap(~decade)+
+  coord_flip()
+```
+Τώρα, ας ελέγξουμε το tempo των τραγουδιών ανα δεκαετία, με ένα violin plot. Αυτό μας δείχνει το εύρος τιμών, που εμφανίζεται και με το εσωτερικό boxplot, και την ποσότητα ανα δεκαετία. Φαίνεται οτι πάλι υπάρχει μία αυξητική τάση, ενώ τηνδ δεκαετία του 40 είχαμε τραγούδια με χαμηλό τέμπο. Κάτι που μπορεί να είναι λογικό απο τα ιστορικά δεδομένα του Β'ΠΠ.
+```{r}
+
+ggplot(data_decade,aes(factor(decade),tempo))+
+  geom_violin(fill = "lightBlue", color = "#473e2c")+
+  geom_boxplot(width=0.05)
+
+```
+Ας κάνουμε και έναν έλεγχο για την διάρκεια των τραγουδιών. Υπάρχει γενικα, στις περισσότερες δεκαετίες, ένα μεγάλο εύρος τιμών. Εκτός απο τις δεκαετίες των 70, 80, 90 και 2000 που γενικά τα τραγούδια αποκτούν συνολικά μια μεγαλύτερη και σταθερή διάρκεια. Σταθερότητα επίσης φαίνεται και στα 50, όμως με μικρότερη διάρκεια τραγουδιών.
+```{r}
+ggplot(data_decade,aes(factor(decade),duration_ms))+
+  geom_violin(fill = "lightBlue", color = "#473e2c")+
+  geom_boxplot(width=0.05)
+
+```
+Ας ελέγξουμε και το danceability των τραγουδιών ανα δεκαετία. Τα 20s φαίνεται να είναι ισορροπημένα σε όλο το εύρος του danceability. Απ την άλλη απ τα 80 και μετά κινούμαστε πάνω απ τον μέσο όρο της τιμής. Τα 40, φαίνεται να έχουμε πτώση της τιμής σε σχέση με τα 20,30
+```{r}
+ggplot(data_decade, aes(x=danceability,y=as.factor(decade)))+
+  geom_density_ridges_gradient() +
+  theme_ridges()
+```
+
+Ας κάνουμε κάποιες πιο σύνθετες αναλύσεις. Αρχικά δημιουργούμε μία δικιά μας κατηγορική μεταβλητή, η οποία καθορίζει τα τραγούδια ως low και high energy. Και κοιτάμε, την κατανομή των τραγουδιών σε σχέση με τον κατηγορικό μας δείκτη και το τέμπο. Φαίνεται ξεκάθαρη συσχέτιση, και τα τραγούδια με high energy value, έχουν υψηλότερο τέμπο.
+```{r}
+splitting<-data_decade%>%mutate(energyFactor=cut(energy,breaks=2,labels=c("low","high")))
+
+ggplot(splitting, aes(x=tempo,y=as.factor(energyFactor),fill=decade))+
+  geom_density_ridges_gradient() +
+  theme_ridges()
+
+```
+Κάτι αντίστοιχο κάνουμε και στο danceability των τραγουδίων.
+Επιπλέον, κάνουμε boxplot, για να δούμε πώς εηρεάζει η ενέργεια των τραγουδιών, με την δημοφιλία τους. 
+Φαίνεται οτι τα high energy songs είναι πιο δημοφιλή απ οτι τα low energy songs. Αυτό βέβαια, ίσως να δείχνει και την τάση αύξησης ενέργειας, κατα το πέρασμα των χρόνων, ακόμα και άν κάναμε κανονικοποίηση των αποτελεσμάτων.
+```{r}
+
+splitting<-splitting%>%mutate(danceFactor=cut(splitting$danceability,breaks=2,labels=c("low","high")))
+
+ggplot(splitting,aes(energyFactor,scale(popularity)))+
+  geom_boxplot()
+
+```
+Στα παρακάτω διαγράμματα-βιολιού, έχουμε μια σύγκριση της ενέργειας των high και low danceability τραγουδιών ανα δεκατία.Γενικά φαίνεται να έχουμε (συγκριτικά ανα δεκαετία) τραγούδια με υψηλή ενέργεια, να είναι περισσότερο χορευτικά. Ενώ υπάρχουν δεκαετίες που δεν έχουν τραγούδια με υψηλό χορευτικό στύλ, όπως οι δεκαετίες 40,50,60,70.
+```{r}
+ggplot(splitting,aes(factor(decade),energy))+
+  geom_violin(fill = "lightBlue", color = "#473e2c")+
+  facet_wrap(~danceFactor)
+
+```
+Ας κάνουμε μια συγκριτική μελέτη του energy factor ανα δεκαετία και την σχέση popularity/energy. Γενικά φαίνεται η τάση αύξησης του popularity ανα δεκαετία και ανα αυξηση energy. Στα 60, έχουμε τα high energy τραγούδια, να είναι πιό δημοφιλή.
+
+
+```{r}
+ggplot(splitting,aes(energyFactor,scale(popularity)))+
+  geom_boxplot()+
+  facet_wrap(~decade)
+
+```
+Αντίστοιχη σύγκριση για συσχέτιση του δείκτη high/low χορευτικό τραγούδι και tempo, ανα δεκαετία. Φαίνεται γενικά οτι στα 40,50,60 δεν έχουμε καθόλου τραγούδια με υψηλό χορευτικό δείκτη, ενώ το ακριβώς αντίθετο για τις δεκαετίες μετά τα 80. Οι δεκαετίες 20,30,70 που έχουν και τα δύο ήδη τραγουδιών, δείχνουν την τάση οτι υψηλά χορευτικά τραγούδιαμ έχουν και υψηλό tempo.
+```{r}
+ggplot(splitting,aes(danceFactor,tempo))+
+  geom_boxplot()+
+  facet_wrap(~decade)
+```
+
+Αρχικά, σπάμε και προσθέτουμε λίστα και για την διάρκεια του τραγουδιού σε μικρή, ενδιάμεση και μεγάλη διάρκεια, και μετά κάνουμε ένα qq plot για να δούμε την συσχέτιση του speechiness(δηλαδή του αριθμού των στίχων) και του duration Factor. Φαίνεται, οτι υπάρχει μια αμιγώς γραμμική σχέση ανάμεσα σ αυτά τα δύο και όσο πιο μεγάλο το speechiness, τόσο πιο μεγάλη η κλίση της ευθείας συσχέτισης με το duration. 
+```{r}
+
+splitting<-splitting%>%mutate(durationFactor=cut(duration_ms,breaks=3,labels=c("low","mid","high")))
+
+ggplot(splitting, aes(sample = speechiness, colour = factor(durationFactor))) +
+  stat_qq() +
+  stat_qq_line()
+```
+Επίσης ας δούμε τον μέσο όρο των κατηγοριών  ας plottaρουμε το density.
+
+```{r}
+grouped_data<-data %>% mutate(decade = floor(year/10)*10) %>% 
+      group_by(decade) %>% 
+      summarize_all(mean) %>% 
+      select(-year)
+
+grouped_data[,-1]<-scale(grouped_data[,-1])
+gather_group<-grouped_data%>%gather(key="value",value="score",-decade)
+
+
+ggplot(gather_group, aes(x=score,y=as.factor(value),fill=decade))+
+  geom_density_ridges_gradient() +
+  theme_ridges()
+
+```
+
+
+
+
+Χρησιμοποιόντας το plot_num, μπορούμε να κάνουμε ένα πολλαπλό γράφημα ιστογραμμάτων (geom_count) για κάθε numerical μεταβλητή, βγάζοντας το year.
+
+```{r}
+plot_num(data%>%select(-year))
+```
+
+Παρακάτω, παίρνουμε τα δεδομένα μας και κάνουμε μια κανονικοποίηση στο [-1,1] για όλες τις μεταβλητές. Αυτό για να μπορέσουμε να τα plottaρουμε όλα σ'ένα boxplot. Ενω κάνουμε tidy τα δεδομένα μας, μέσω gather.
+```{r}
+data_scaled<-data
+data_scaled[,-1]<-scale(data_scaled[,-1])
+scale<-data_scaled%>% gather(key="value",value="score",-year)
+
+ggplot(scale,aes(x = reorder(value,-score), y = score))+
+  geom_boxplot()
+
+```
+Ενώ το παραπάνω, το "σπάμε" και σε δεκαετίες, για να δούμε τις τάσεις ανα τα χρόνια.
+```{r}
+data_decade_scale<-data_decade
+data_decade_scale[,which(!names(data_decade_scale) %in% c("decade","year"))]<-scale(data_decade_scale[,which(!names(data_decade_scale) %in% c("decade","year"))])
+data_gather_decaded_scaled<-data_decade_scale%>% gather(key="value",value="score",-year,-decade)
+
+ggplot(data_gather_decaded_scaled,aes(x = reorder(value,-score), y = score))+
+  geom_boxplot()+
+  facet_wrap(~decade)+
+  coord_flip()
+```
+Ενώ τις ίδιες τάσεις μπορούμε να τις δούμε και με gradient density plot για να έχουμε μια καλύτερη εικόνα της κατανομής ανα δεκαετία.
+```{r}
+ggplot(data_gather_decaded_scaled, aes(x=score,y=as.factor(value)))+
+  geom_density_ridges_gradient() +
+  theme_ridges()+
+  facet_wrap(~decade)
+```
+Επιπλέον, βλέπουμε την σύγκριση των tempo/energy και χρωματίζουμε ανάλογα με το popularity, σε scatterplot, ενώ κάνουμε και ένα density plot, για να δούμε τα clusters που δημιουργούνται.Όπως είπαμε, υψηλό τεμπο==υψηλή ενέργεια.
+```{r}
+splitting_scaled<-splitting
+splitting_scaled[,which(!names(splitting_scaled) %in% c("decade","year","energyFactor","durationFactor","danceFactor"))]<-scale(data_decade_scale[,which(!names(data_decade_scale) %in% c("decade","year","energyFactor","durationFactor","danceFactor"))])
+
+
+
+ggplot(splitting, aes(tempo,energy,color=scale(popularity)))+
+  geom_point(position = "jitter")+
+  geom_density2d()
+
+
+```
+Στο παρακάτω, κάνουμε μια σύνθετη μελέτη. Αρχικά πάλι κοιτάμε την συσχέτιση energy/tempo, όμως αυτή την φορά, κάνουμε έναν διαχωρισμό των τραγουδιών, ανάλογα αν είναι high/low danceability. Ενώ χρωματίζουμε ανάλογα με την ζωνάτνια κάθε τραγουδιου, δηλαδή αν υπάρχει ζωντανό κοινό κατα την ηχογράφηση. Φαίνεται οτι στα low dancing τραγούδια, έχουμε μεγαλύτερο liveliness σε σχέση με τα high dancing, ενω γενικά φαίνεται η τάση low/low/low στην τριπλή συσχέτιση energy/tempo/dancing
+```{r}
+ggplot(splitting, aes(tempo,energy,color=scale(liveness)))+
+  geom_point()+
+  facet_wrap(~danceFactor)
+  
+```
+Παρακάτω, σύγκριση acousticness και speechiness. 
+```{r}
+ggplot(data,aes(acousticness,speechiness))+
+  geom_point()+
+  geom_density_2d()
+```
+Και παρακάτω, το ίδιο για την συγκριση ανα δεκαετία. Φαίνεται γενικά οτι με το πέρασμα των ετών μειώνεται το speechiness, ενω υπάρχει ξεκαθαρη τάση μείωσης του acousticness. 
+```{r}
+
+ggplot(data_decade,aes(acousticness,speechiness))+
+  geom_point(aes(color=tempo))+
+  facet_wrap(~decade)
+```
+Παρακάτω, κάνουμε την ίδια σύγκριση, αλλα αυτή την φορά κοιτάμε την τάση του dance factor σε σχέση με τα plotted σημείων.
+
+```{r}
+ggplot(splitting,aes(acousticness,speechiness))+
+  geom_point(position="jitter")+
+  geom_smooth(aes(linetype=danceFactor),se=FALSE)
+```
+
+Σύγκριση loudness/liveliness και ενέργειας. Εδώ φαινεται οτι loud τραγούδια είναι ελάχιστα πιο lively, ενώ ξεκάθαρα πιο ενεργειακά.
+```{r}
+ggplot(splitting,aes(liveness,loudness,color=energyFactor))+
+  geom_point()+
+  geom_density_2d()
+```
+Παρακάτω, κάνουμε ένα "σπάσιμο της μεταβλητής" popularity, σε χαμηλο, οκ, μεσαίο , καλο και υψηλο. Και έπειτα, βλέπουμε τις τάσεις για το danceability/ tempo, σε σύγκριση και με την ενέργεια. Συμπεράσματα, το χαμηλό τέμπο, δεν επηρεάζει τόσο το danceability, αλλα είναι πολυ χαμηλή η ενέργεια τους. Το τρίπτυχο υψηλή ενέργεια,  χορευτικότητα και τεμπο, δίνει πιο δημοφιλή τραγούδια γενικα. Με το δίδυμο tempo/dancebility να φαίνεται καθοριστικό για το πόσο δημοφιλές θα είναι το τραγούδι.
+```{r}
+ggplot(data_decade_scale,aes(tempo,danceability,alpha=energy,color=cut(popularity,breaks=5,labels=c("low","ok","mid","good","high"))))+
+  geom_point(postition="jitter")
+```
+Παρακάτω φαίνεται η σχέση valance (δηλαδή ποσο θετικό είναι το τραγούδι) και του energy. Επιπλέον, φαίνεται η ομαδοποίηση σε σχέση με τα high/low χορευτικά τραγούδια.
+
+```{r}
+ggplot(splitting)+
+  geom_point(mapping=aes(energy,valence,color=danceFactor))+
+  geom_density2d(mapping=aes(energy,valence))
+  
+```
+Αλλά και γενικά οι τάσεις ανα δεκαετία. Με το πέρασμα των δεκαετιών έχουμε υψηλά ενεργειακά τραγούδια και πιο χορευτικά. Ενώ η θετικότητα τους είναι σχετικά ενδίαμεση, με μια τάση στα 2010 να πέφτει.
+```{r}
+ggplot(splitting)+
+  geom_point(mapping=aes(energy,valence,color=danceFactor))+
+  facet_wrap(~decade)
+```
+
+Παρακάτω, φαίνοναι οι αυξομειωτικές τάσεις ανα column, χρησιομποιόντας coordinate plot. Και coord plots, ανα δεκαετία και με χρωματισμό ανα τεχνητή κατηγοριακή μεταβλητή.
+```{r}
+ggparcoord(splitting_scaled,columns =2:12,alphaLines = 0.3,groupColumn=13)+
+  coord_flip()
+
+```
+```{r}
+
+ggparcoord(splitting_scaled,columns =c(2:4,6:12),alphaLines = 0.3,groupColumn=14,splineFactor = 10)+
+  coord_flip()+
+  facet_wrap(~decade)
+
+```
+```{r}
+ggparcoord(splitting_scaled,columns =c(2,4:12),alphaLines = 0.3,groupColumn=15,splineFactor = 10)+
+  coord_flip()+
+  facet_wrap(~decade)
+
+```
+```{r}
+ggparcoord(splitting_scaled,columns =c(2,3,5:12),alphaLines = 0.3,groupColumn=16,splineFactor = 10)+
+  coord_flip()+
+  facet_wrap(~decade)
+
+```
+Ενώ εδώ, έχουμε χρωματισμό ανα τεχνητή κατηγορική μεταβλητή popularityFactor.
+```{r}
+splitting_scaled<-splitting_scaled%>%mutate(popularityFactor=cut(popularity,breaks=5,labels=c("low","ok","mid","good","high")))
+ggparcoord(splitting_scaled,columns =2:12,alphaLines = 0.3,groupColumn=17,splineFactor = 10)+
+  coord_flip()
+```
+
+Παρακάτω, έχουμε διάγραμμα συσχετίσεων (multiple scatter plot) μεταξύ όλων των μεταβλητών.
+```{r}
+
+splom(select(data_decade_scale,-year,-decade))
+```
+Παρακάτω κάνουμε κάποια heatmaps, για να δούμε την ποσότηττα συγκεκριμένων μεταβλητών ανα κατηγορία.Βλέπουμε τις ίδιες τάσεις που συζητήσαμε ήδη.
+```{r}
+ggplot(splitting_scaled, aes(decade, tempo)) + 
+  geom_bin2d(binwidth = c(10, 0.5))
+```
+Υψηλό τεμπο=> ψηλό popularity.
+```{r}
+ggplot(splitting_scaled, aes(popularity, tempo)) + 
+  geom_bin2d()
+```
+
+```{r}
+ggplot(splitting_scaled, aes(energy, tempo)) + 
+  geom_bin2d(binwidth = c(0.5, 0.5))+
+  facet_wrap(~decade)
+```
+Πολλαπλό heatmap, για όλες τις μεταβλητές σε σχέση με το value που έχουν ανα σειρά. Εδώ μπορούμε να εντοπίσουμε και τάσεις.πχ αυξηση loudness ανα χρόνια. Ή μείωση της θετικότητας τα τελευταία χρόνια. Ενώ φαίνονται και κάποια outliers. πχ στο speechiness με value κιτρινο.
+```{r}
+data_decade_scale_new <-data_decade_scale %>%
+  rownames_to_column() %>%
+  gather(colname, value, -rowname,-year,-decade)
+
+ggplot(data_decade_scale_new, aes(x = rowname, y = colname, fill = value)) +
+  geom_tile() + scale_fill_viridis()
+  
+```
+Και τέλος, μια μελέτη των μεταβλητών ως χρονο σειρές. 
+Αρχικά, φαίνεται η μελέτη του tempo, που ξέρουμε οτι αυξάνεται με το πέρασμα των ετών, ενώ ο κυλιόμενος μέσος, φαίνεται τα τελευταία χρόνια να πέφτει.
+```{r}
+
+ggplot(splitting_scaled, aes(x = year, y = tempo))+
+  geom_point(aes(color=energyFactor))+
+  geom_line(color = "grey50") + 
+  geom_smooth(method = "loess", se = FALSE, lwd = 1.5)
+    
+```
+Επίσης, κοιτάμε και την αύξηση της ενέργειας ανα τα χρόνια, με maxima στα 2010s
+```{r}
+
+ggplot(data, aes(x = year, y = energy))+
+  geom_point()+
+  geom_line(color = "grey50") + 
+  geom_smooth(method = "loess", se = FALSE, lwd = 1.5)
+    
+```
+Το popularity, που λόγω δεδομένων, παραμένει γραμμικά αυξανόμενο.
+```{r}
+
+ggplot(data, aes(x = year, y = scale(popularity)))+
+  geom_point()+
+  geom_line(color = "grey50") + 
+  geom_smooth(method = "loess", se = FALSE, lwd = 1.5)
+    
+```
+Ενώ το danceability, φαίνεται να είναι στην άνοδο, ενώ υπήρξε ενα minimum στο 1955-60.
+```{r}
+
+ggplot(splitting_scaled, aes(x = year, y =(danceability)))+
+  geom_point(aes(color=energyFactor))+
+  geom_line(color = "grey50") + 
+  geom_smooth(method = "loess", se = FALSE, lwd = 1.5)
+    
+```
+Εδω φαίνεται η ενδιαφέρουσα η μείση του vocalness με το πέρασμα των ετών.
+```{r}
+
+ggplot(data, aes(x = year, y = instrumentalness))+
+  geom_point()+
+  geom_line(color = "grey50") + 
+  geom_smooth(method = "loess", se = FALSE, lwd = 1.5)
+    
+```
+Ενώ εδώ φαίνεται η μείωση και μετά αυξήση της "ομιλίας."
+```{r}
+
+ggplot(data, aes(x = year, y = speechiness))+
+  geom_point()+
+  geom_line(color = "grey50") + 
+  geom_smooth(method = "loess", se = FALSE, lwd = 1.5)
+    
+```
+Ενώ, τέλος, φαίνεται μια γραμμική αύξηση του θορύβου ανα τα χρόνια, ενώ η χρήση instrumentallnes, οπως είπαμε μειώνεται.
+```{r}
+
+ggplot(data, aes(x = year, y = loudness))+
+  geom_point(aes(alpha=instrumentalness))+
+  geom_line(color = "grey50") + 
+  geom_smooth(method = "loess", se = FALSE, lwd = 1.5)
+    
+```
+
